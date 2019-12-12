@@ -18,14 +18,16 @@
 # This script must be sourced so that it can set CATALINA_BASE for the parent process
 
 TOMCAT_CONF=${TOMCAT_CONF:-`readlink -e /etc/hadoop-httpfs/tomcat-conf`}
-TOMCAT_DEPLOYMENT=${TOMCAT_DEPLOYMENT:-/var/lib/hadoop-httpfs/tomcat-deployment}
-HTTPFS_HOME=${HTTPFS_HOME:-/usr/lib/hadoop-httpfs}
+TOMCAT_DEPLOYMENT=${TOMCAT_DEPLOYMENT:-/etc/hadoop-httpfs/tomcat-deployment}
+HTTPFS_HOME=${HTTPFS_HOME:-/usr/hdp/current/hadoop-httpfs}
 
 rm -rf ${TOMCAT_DEPLOYMENT}
-mkdir ${TOMCAT_DEPLOYMENT}
+mkdir -p ${TOMCAT_DEPLOYMENT}
+ln -sf ${HTTPFS_HOME}/webapps ${TOMCAT_DEPLOYMENT}/
+
+ln -sf /usr/lib/bigtop-tomcat/lib ${TOMCAT_DEPLOYMENT}/lib
+ln -sf /usr/lib/bigtop-tomcat/bin ${TOMCAT_DEPLOYMENT}/bin
 cp -r ${TOMCAT_CONF}/conf ${TOMCAT_DEPLOYMENT}/
-cp -r ${HTTPFS_HOME}/webapps ${TOMCAT_DEPLOYMENT}/
-cp -r ${TOMCAT_CONF}/WEB-INF/* ${TOMCAT_DEPLOYMENT}/webapps/webhdfs/WEB-INF/
 
 if [ -n "${BIGTOP_CLASSPATH}" ] ; then
   sed -i -e "s#^\(common.loader=.*\)\$#\1,${BIGTOP_CLASSPATH/:/,}#" ${TOMCAT_DEPLOYMENT}/conf/catalina.properties

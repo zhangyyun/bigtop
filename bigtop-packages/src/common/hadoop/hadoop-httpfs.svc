@@ -15,15 +15,15 @@
 HADOOP_NAME="httpfs"
 DAEMON="hadoop-$HADOOP_NAME"
 DESC="Hadoop $HADOOP_NAME"
-EXEC_PATH="/usr/lib/hadoop-httpfs/sbin/httpfs.sh"
-SVC_USER="$HADOOP_NAME"
-WORKING_DIR="/var/run/hadoop-httpfs"
+EXEC_PATH="\$HTTPFS_HOME/sbin/httpfs.sh"
+SVC_USER="\${SVC_USER:-httpfs}"
+WORKING_DIR="\$HTTPFS_RUN"
 DAEMON_FLAGS="$HADOOP_NAME"
-CONF_DIR="/etc/$DAEMON/conf"
-PIDFILE="/var/run/$DAEMON/hadoop-$SVC_USER-$HADOOP_NAME.pid"
-
+CONF_DIR="\$HTTPFS_HOME/conf"
+PIDFILE="\$HTTPFS_RUN/hadoop-\$SVC_USER-\$SERVICE_NAME.pid"
 CHKCONFIG=${CHKCONFIG:-"2345 90 10"}
 CHKCONFIG="${CHKCONFIG%% *} 90 10"
+
 
 generate_start() {
 
@@ -34,14 +34,14 @@ start() {
 
   export HTTPFS_USER="$SVC_USER"
   export HTTPFS_CONFIG="$CONF_DIR"
-  export HTTPFS_LOG=${HTTPFS_LOG:-"/var/log/hadoop-httpfs/"}
+  export HTTPFS_LOG="$HTTPFS_LOG"
   export HTTPFS_TEMP="$(dirname $PIDFILE)"
   export HTTPFS_SLEEP_TIME="$SLEEP_TIME"
   export CATALINA_BASE=${CATALINA_BASE:-"/var/lib/hadoop-httpfs/tomcat-deployment"}
   export CATALINA_PID="$PIDFILE"
   export CATALINA_TMPDIR="$HTTPFS_TEMP"
 
-  . /usr/lib/hadoop-httpfs/tomcat-deployment.sh
+  . $HTTPFS_HOME/tomcat-deployment.sh
 
   su -s /bin/bash -c "${EXEC_PATH} start $DAEMON_FLAGS" $HTTPFS_USER
 
@@ -89,6 +89,21 @@ stop() {
     log_failure_msg "Failure to stop ${DESC}. Return value: $RETVAL"
   fi
 }
+__EOT__
+
+}
+
+hook_commands() {
+
+cat <<__EOT__
+SERVICE_NAME="${HADOOP_NAME}"
+export HTTPFS_HOME="/usr/hdp/current/hadoop-\$SERVICE_NAME"
+export HADOOP_HOME="/usr/hdp/current/hadoop-\$SERVICE_NAME/../hadoop"
+export HTTPFS_RUN="\${HTTPFS_RUN:-/var/run/hadoop-httpfs}"
+export HTTPFS_LOG="\${HTTPFS_LOG:-/var/log/hadoop-httpfs}"
+
+install -d -m 0755 -o \${SVC_USER} -g \${SVC_USER} \${HTTPFS_LOG} 1>/dev/null 2>&1 || :
+install -d -m 0755 -o \${SVC_USER} -g \${SVC_USER} \${HTTPFS_RUN} 1>/dev/null 2>&1 || :
 __EOT__
 
 }

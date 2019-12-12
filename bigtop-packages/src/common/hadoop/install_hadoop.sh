@@ -38,7 +38,6 @@ OPTS=$(getopt \
   -l 'distro-dir:' \
   -l 'build-dir:' \
   -l 'native-build-string:' \
-  -l 'installed-lib-dir:' \
   -l 'hadoop-dir:' \
   -l 'httpfs-dir:' \
   -l 'hdfs-dir:' \
@@ -54,6 +53,8 @@ OPTS=$(getopt \
   -l 'man-dir:' \
   -l 'example-dir:' \
   -l 'apache-branch:' \
+  -l 'bin-dir:' \
+  -l 'etc-dir:' \
   -- "$@")
 
 if [ $? != 0 ] ; then
@@ -111,14 +112,17 @@ while true ; do
         --httpfs-etc-dir)
         HTTPFS_ETC_DIR=$2 ; shift 2
         ;;
-        --installed-lib-dir)
-        INSTALLED_LIB_DIR=$2 ; shift 2
-        ;;
         --man-dir)
         MAN_DIR=$2 ; shift 2
         ;;
         --example-dir)
         EXAMPLE_DIR=$2 ; shift 2
+        ;;
+        --bin-dir)
+        BIN_DIR=$2 ; shift 2
+        ;;
+        --etc-dir)
+        ETC_DIR=$2 ; shift 2
         ;;
         --)
         shift ; break
@@ -139,11 +143,11 @@ for var in PREFIX BUILD_DIR; do
 done
 
 HADOOP_DIR=${HADOOP_DIR:-$PREFIX/usr/lib/hadoop}
-HDFS_DIR=${HDFS_DIR:-$PREFIX/usr/lib/hadoop-hdfs}
-YARN_DIR=${YARN_DIR:-$PREFIX/usr/lib/hadoop-yarn}
-MAPREDUCE_DIR=${MAPREDUCE_DIR:-$PREFIX/usr/lib/hadoop-mapreduce}
-CLIENT_DIR=${CLIENT_DIR:-$PREFIX/usr/lib/hadoop/client}
-HTTPFS_DIR=${HTTPFS_DIR:-$PREFIX/usr/lib/hadoop-httpfs}
+HDFS_DIR=${HDFS_DIR:-${HADOOP_DIR}-hdfs}
+YARN_DIR=${YARN_DIR:-${HADOOP_DIR}-yarn}
+MAPREDUCE_DIR=${MAPREDUCE_DIR:-${HADOOP_DIR}-mapreduce}
+CLIENT_DIR=${CLIENT_DIR:-${HADOOP_DIR}/client}
+HTTPFS_DIR=${HTTPFS_DIR:-${HADOOP_DIR}-httpfs}
 SYSTEM_LIB_DIR=${SYSTEM_LIB_DIR:-/usr/lib}
 BIN_DIR=${BIN_DIR:-$PREFIX/usr/bin}
 DOC_DIR=${DOC_DIR:-$PREFIX/usr/share/doc/hadoop}
@@ -151,39 +155,29 @@ MAN_DIR=${MAN_DIR:-$PREFIX/usr/man}
 SYSTEM_INCLUDE_DIR=${SYSTEM_INCLUDE_DIR:-$PREFIX/usr/include}
 SYSTEM_LIBEXEC_DIR=${SYSTEM_LIBEXEC_DIR:-$PREFIX/usr/libexec}
 EXAMPLE_DIR=${EXAMPLE_DIR:-$DOC_DIR/examples}
-HADOOP_ETC_DIR=${HADOOP_ETC_DIR:-$PREFIX/etc/hadoop}
-HTTPFS_ETC_DIR=${HTTPFS_ETC_DIR:-$PREFIX/etc/hadoop-httpfs}
-BASH_COMPLETION_DIR=${BASH_COMPLETION_DIR:-$PREFIX/etc/bash_completion.d}
+ETC_DIR=${ETC_DIR:-$PREFIX/etc}
+HADOOP_ETC_DIR=${HADOOP_ETC_DIR:-${ETC_DIR}/hadoop}
+HTTPFS_ETC_DIR=${HTTPFS_ETC_DIR:-${ETC_DIR}/hadoop-httpfs}
+BASH_COMPLETION_DIR=${BASH_COMPLETION_DIR:-${ETC_DIR}/bash_completion.d}
 
-INSTALLED_HADOOP_DIR=${INSTALLED_HADOOP_DIR:-/usr/lib/hadoop}
 HADOOP_NATIVE_LIB_DIR=${HADOOP_DIR}/lib/native
 
 ##Needed for some distros to find ldconfig
 export PATH="/sbin/:$PATH"
-
-# Make bin wrappers
-mkdir -p $BIN_DIR
-
-for component in $HADOOP_DIR/bin/hadoop $HDFS_DIR/bin/hdfs $YARN_DIR/bin/yarn $MAPREDUCE_DIR/bin/mapred ; do
-  wrapper=$BIN_DIR/${component#*/bin/}
-  cat > $wrapper <<EOF
-#!/bin/bash
-
-# Autodetect JAVA_HOME if not defined
-. /usr/lib/bigtop-utils/bigtop-detect-javahome
-
-export HADOOP_LIBEXEC_DIR=/${SYSTEM_LIBEXEC_DIR#${PREFIX}}
-
-exec ${component#${PREFIX}} "\$@"
-EOF
-  chmod 755 $wrapper
-done
 
 #libexec
 install -d -m 0755 ${SYSTEM_LIBEXEC_DIR}
 cp ${BUILD_DIR}/libexec/* ${SYSTEM_LIBEXEC_DIR}/
 cp ${DISTRO_DIR}/hadoop-layout.sh ${SYSTEM_LIBEXEC_DIR}/
 install -m 0755 ${DISTRO_DIR}/init-hdfs.sh ${SYSTEM_LIBEXEC_DIR}/
+cat >> ${SYSTEM_LIBEXEC_DIR}/hadoop-layout.sh <<EOF
+HADOOP_LIBEXEC_DIR=${SYSTEM_LIBEXEC_DIR#${PREFIX}}
+HADOOP_CONF_DIR=${HADOOP_DIR#${PREFIX}}/conf
+HADOOP_COMMON_HOME=${HADOOP_DIR#${PREFIX}}
+HADOOP_HDFS_HOME=${HDFS_DIR#${PREFIX}}
+HADOOP_MAPRED_HOME=${MAPREDUCE_DIR#${PREFIX}}
+HADOOP_YARN_HOME=${YARN_DIR#${PREFIX}}
+EOF
 install -m 0755 ${DISTRO_DIR}/init-hcfs.json ${SYSTEM_LIBEXEC_DIR}/
 install -m 0755 ${DISTRO_DIR}/init-hcfs.groovy ${SYSTEM_LIBEXEC_DIR}/
 rm -rf ${SYSTEM_LIBEXEC_DIR}/*.cmd
@@ -239,22 +233,47 @@ install -d -m 0755 ${MAPREDUCE_DIR}/sbin
 cp -a ${BUILD_DIR}/sbin/mr-jobhistory-daemon.sh ${MAPREDUCE_DIR}/sbin
 
 # native libs
-install -d -m 0755 ${SYSTEM_LIB_DIR}
 install -d -m 0755 ${HADOOP_NATIVE_LIB_DIR}
-for library in libhdfs.so.0.0.0; do
-  cp ${BUILD_DIR}/lib/native/${library} ${SYSTEM_LIB_DIR}/
-  ldconfig -vlN ${SYSTEM_LIB_DIR}/${library}
-  ln -s ${library} ${SYSTEM_LIB_DIR}/${library/.so.*/}.so
-done
 
 install -d -m 0755 ${SYSTEM_INCLUDE_DIR}
-cp ${BUILD_DIR}/include/hdfs.h ${SYSTEM_INCLUDE_DIR}/
+cp ${BUILD_DIR}/include/* ${SYSTEM_INCLUDE_DIR}/
 
 cp ${BUILD_DIR}/lib/native/*.a ${HADOOP_NATIVE_LIB_DIR}/
-for library in `cd ${BUILD_DIR}/lib/native ; ls libsnappy.so.1.* 2>/dev/null` libhadoop.so.1.0.0; do
+for library in `cd ${BUILD_DIR}/lib/native ; ls libsnappy.so.1.* 2>/dev/null` libhadoop.so.1.0.0 libhdfs.so.0.0.0; do
   cp ${BUILD_DIR}/lib/native/${library} ${HADOOP_NATIVE_LIB_DIR}/
   ldconfig -vlN ${HADOOP_NATIVE_LIB_DIR}/${library}
   ln -s ${library} ${HADOOP_NATIVE_LIB_DIR}/${library/.so.*/}.so
+done
+
+# Make bin wrappers
+mkdir -p $BIN_DIR
+
+install -m 0755 ${DISTRO_DIR}/kill-name-node.sh ${HDFS_DIR}/bin/kill-name-node
+install -m 0755 ${DISTRO_DIR}/kill-secondary-name-node.sh ${HDFS_DIR}/bin/kill-secondary-name-node
+
+for component in $HADOOP_DIR/bin/hadoop $HDFS_DIR/bin/hdfs $YARN_DIR/bin/yarn $MAPREDUCE_DIR/bin/mapred $YARN_DIR/bin/mapred ; do
+  mv $component ${component}.distro
+  wrapper=$BIN_DIR/${component#*/bin/}
+  cat > $component <<EOF
+#!/bin/bash
+
+# Autodetect JAVA_HOME if not defined
+. /usr/lib/bigtop-utils/bigtop-detect-javahome
+
+export HADOOP_HOME=\${HADOOP_HOME:-${HADOOP_DIR#${PREFIX}}}
+export HADOOP_MAPRED_HOME=\${HADOOP_MAPRED_HOME:-${HADOOP_DIR#${PREFIX}}-mapreduce}
+export HADOOP_YARN_HOME=\${HADOOP_YARN_HOME:-${HADOOP_DIR#${PREFIX}}-yarn}
+export HADOOP_LIBEXEC_DIR=\${HADOOP_HOME}/libexec
+export HDP_VERSION=\${HDP_VERSION:-${HDP_VERSION}}
+export HADOOP_OPTS="\${HADOOP_OPTS} -Dhdp.version=\${HDP_VERSION}"
+export YARN_OPTS="\${YARN_OPTS} -Dhdp.version=\${HDP_VERSION}"
+
+exec ${component#${PREFIX}}.distro "\$@"
+EOF
+  chmod 755 $component
+  if [ $component != $wrapper ]; then
+    cp -p $component $wrapper
+  fi
 done
 
 # Install fuse wrapper
@@ -272,7 +291,7 @@ export HADOOP_HOME=\${HADOOP_HOME:-${HADOOP_DIR#${PREFIX}}}
 BIGTOP_DEFAULTS_DIR=\${BIGTOP_DEFAULTS_DIR-/etc/default}
 [ -n "\${BIGTOP_DEFAULTS_DIR}" -a -r \${BIGTOP_DEFAULTS_DIR}/hadoop-fuse ] && . \${BIGTOP_DEFAULTS_DIR}/hadoop-fuse
 
-export HADOOP_LIBEXEC_DIR=${SYSTEM_LIBEXEC_DIR#${PREFIX}}
+export HADOOP_LIBEXEC_DIR=\${HADOOP_HOME}/libexec
 
 if [ "\${LD_LIBRARY_PATH}" = "" ]; then
   export JAVA_NATIVE_LIBS="libjvm.so"
@@ -320,7 +339,35 @@ done
 
 # HTTPFS
 install -d -m 0755 ${HTTPFS_DIR}/sbin
-cp ${BUILD_DIR}/sbin/httpfs.sh ${HTTPFS_DIR}/sbin/
+
+# Install httpfs wrapper
+httpfs_wrapper=${HTTPFS_DIR}/sbin/httpfs.sh
+cp ${BUILD_DIR}/sbin/httpfs.sh ${httpfs_wrapper}.distro
+
+cat > ${httpfs_wrapper} <<EOF
+#!/bin/bash
+
+# Autodetect JAVA_HOME if not defined
+. /usr/lib/bigtop-utils/bigtop-detect-javahome
+
+export HADOOP_HOME=\${HADOOP_HOME:-${HADOOP_DIR#${PREFIX}}}
+export HADOOP_LIBEXEC_DIR=\${HADOOP_HOME}/libexec
+
+TOMCAT_DEPLOYMENT=\${TOMCAT_DEPLOYMENT:-/etc/hadoop-httpfs/tomcat-deployment}
+HTTPFS_HOME=\${HTTPFS_HOME:-${HTTPFS_DIR#${PREFIX}}}
+
+if [ ! -e "\${TOMCAT_DEPLOYMENT}" ]; then
+  . \${HTTPFS_HOME}/tomcat-deployment.sh
+fi
+
+export CATALINA_BASE=\${TOMCAT_DEPLOYMENT}
+export HTTPFS_CONFIG=/etc/hadoop-httpfs/conf
+
+exec ${httpfs_wrapper#${PREFIX}}.distro "\$@"
+EOF
+
+chmod 755 $httpfs_wrapper
+
 cp -r ${BUILD_DIR}/share/hadoop/httpfs/tomcat/webapps ${HTTPFS_DIR}/webapps
 install -d -m 0755 ${PREFIX}/var/lib/hadoop-httpfs
 install -d -m 0755 $HTTPFS_ETC_DIR/conf.empty
@@ -333,8 +380,6 @@ HTTPS_DIRECTORY=$HTTPFS_ETC_DIR/tomcat-conf.https
 install -d -m 0755 ${HTTP_DIRECTORY}
 cp -r ${BUILD_DIR}/share/hadoop/httpfs/tomcat/conf ${HTTP_DIRECTORY}
 chmod 644 ${HTTP_DIRECTORY}/conf/*
-install -d -m 0755 ${HTTP_DIRECTORY}/WEB-INF
-mv ${HTTPFS_DIR}/webapps/webhdfs/WEB-INF/*.xml ${HTTP_DIRECTORY}/WEB-INF/
 
 cp -r ${HTTP_DIRECTORY} ${HTTPS_DIRECTORY}
 mv ${HTTPS_DIRECTORY}/conf/ssl-server.xml ${HTTPS_DIRECTORY}/conf/server.xml
@@ -345,6 +390,15 @@ sed -i -e '/<\/configuration>/i\
   <property>\
     <name>httpfs.hadoop.config.dir</name>\
     <value>/etc/hadoop/conf</value>\
+  </property>\
+  <!-- HUE proxy user setting -->\
+  <property>\
+    <name>httpfs.proxyuser.hue.hosts</name>\
+    <value>*</value>\
+  </property>\
+  <property>\
+    <name>httpfs.proxyuser.hue.groups</name>\
+    <value>*</value>\
   </property>' $HTTPFS_ETC_DIR/conf.empty/httpfs-site.xml
 
 # Make the pseudo-distributed config
@@ -365,9 +419,10 @@ cp ${BUILD_DIR}/etc/hadoop/log4j.properties $HADOOP_ETC_DIR/conf.pseudo
 
 # FIXME: Provide a convenience link for configuration (HADOOP-7939)
 install -d -m 0755 ${HADOOP_DIR}/etc
-ln -s ${HADOOP_ETC_DIR##${PREFIX}}/conf ${HADOOP_DIR}/etc/hadoop
+ln -s /etc/hadoop/conf ${HADOOP_DIR}/conf
+ln -s ../../hadoop/conf ${HADOOP_DIR}/etc/hadoop
 install -d -m 0755 ${YARN_DIR}/etc
-ln -s ${HADOOP_ETC_DIR##${PREFIX}}/conf ${YARN_DIR}/etc/hadoop
+ln -s ../../hadoop/conf ${YARN_DIR}/etc/hadoop
 
 # Create log, var and lib
 install -d -m 0755 $PREFIX/var/{log,run,lib}/hadoop-hdfs
@@ -380,9 +435,8 @@ for DIR in ${HADOOP_DIR} ${HDFS_DIR} ${YARN_DIR} ${MAPREDUCE_DIR} ${HTTPFS_DIR} 
    rm -fv *-sources.jar
    rm -fv lib/hadoop-*.jar
    for j in hadoop-*.jar; do
-     if [[ $j =~ hadoop-(.*)-${HADOOP_VERSION}.jar ]]; then
-       name=${BASH_REMATCH[1]}
-       ln -s $j hadoop-$name.jar
+     if [[ $j =~ hadoop.*-${HADOOP_VERSION}.*.jar ]]; then
+       ln -s $j ${j/-${HADOOP_VERSION}/}
      fi
    done)
 done
@@ -398,3 +452,5 @@ for file in `cat ${BUILD_DIR}/hadoop-client.list` ; do
   done
   exit 1
 done
+cp ${BUILD_DIR}/../hadoop-dist/target/hadoop-${HADOOP_VERSION}.tar.gz ${HADOOP_DIR}/mapreduce.tar.gz
+

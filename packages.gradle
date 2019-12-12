@@ -442,12 +442,19 @@ def genTasks = { target ->
     def final PKG_OUTPUT_DIR = config.bigtop.components[target].outputdir
     def final PKG_VERSION = config.bigtop.components[target].version.pkg
     def final BASE_VERSION = config.bigtop.components[target].version.base
-    def final HADOOP_VERSION = config.bigtop.components["hadoop"].version.pkg
+    def final HADOOP_VERSION = config.bigtop.components["hadoop"].version.base
+    def final BASE_ROOT = config.bigtop.root
+    def final HDP_VERSION = config.bigtop.hdpver
+    def final HDP_SUFFIX = config.bigtop.pkgsuffix
     def RELEASE_DIST = "rpmbuild --eval '%{?dist}' 2>/dev/null".execute().text.trim().replaceAll("'",'')
     def SRCRPM="$PKG_OUTPUT_DIR/$PKG_NAME-${PKG_VERSION}-$BIGTOP_BUILD_STAMP${RELEASE_DIST}.src.rpm"
 
     def command = [
         '--define', "_topdir $PKG_BUILD_DIR/rpm/",
+        '--define', "${NAME}_base ${BASE_ROOT}",
+        '--define', "${NAME}_name ${PKG_NAME}",
+        '--define', "hdp_suffix ${HDP_SUFFIX}",
+        '--define', "hdp_version ${HDP_VERSION}",
         '--define', "${NAME}_base_version $BASE_VERSION",
         '--define', "hadoop_version ${HADOOP_VERSION}",
         '--define', "${NAME}_version ${PKG_VERSION}",
@@ -488,6 +495,7 @@ def genTasks = { target ->
     def final PKG_VERSION = config.bigtop.components[target].version.pkg
     def final BASE_VERSION = config.bigtop.components[target].version.base
     def final PKG_OUTPUT_DIR = config.bigtop.components[target].outputdir
+    def final HDP_SUFFIX = config.bigtop.pkgsuffix
     safeDelete ("$PKG_BUILD_DIR/rpm")
     ['INSTALL','SOURCES','BUILD','SRPMS','RPMS'].each { rpmdir ->
       mkdir("$PKG_BUILD_DIR/rpm/$rpmdir")
@@ -541,6 +549,8 @@ def genTasks = { target ->
 
     def command = [
         '--define', "_topdir $PKG_BUILD_DIR/rpm/",
+        '--define', "hdp_suffix ${HDP_SUFFIX}",
+        '--define', "${PKG_NAME_FOR_PKG}_name ${PKG_NAME}",
         '--define', "${PKG_NAME_FOR_PKG}_base_version $BASE_VERSION",
         '--define', "${PKG_NAME_FOR_PKG}_version ${PKG_VERSION}",
         '--define', "${PKG_NAME_FOR_PKG}_release ${BIGTOP_BUILD_STAMP}%{?dist}",

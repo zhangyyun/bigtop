@@ -302,9 +302,9 @@ LOG.info("Now copying Jars into the DFS for oozie ");
 LOG.info("This might take a few seconds...");
 
 def final OOZIE_SHARE = "/user/oozie/share/lib/";
-def final MAPREDUCE = "/usr/lib/hadoop-mapreduce/";
-def final PIG_HOME = "/usr/lib/pig/";
-def final HIVE_HOME = "/usr/lib/hive/";
+def final MAPREDUCE = "HDP_PLACEHOLDER/hadoop-mapreduce/";
+def final PIG_HOME = "HDP_PLACEHOLDER/pig/";
+def final HIVE_HOME = "HDP_PLACEHOLDER/hive/";
 
 total_jars += copyJars(fs,
     new File(HIVE_HOME, "lib"), "",
@@ -330,7 +330,7 @@ LOG.info("Now copying Jars into the DFS for tez ");
 LOG.info("This might take a few seconds...");
 
 def final TEZ_APPS = "/apps";
-def final TEZ_HOME = "/usr/lib/tez/";
+def final TEZ_HOME = "HDP_PLACEHOLDER/tez/";
 
 total_jars += copyJars(fs,
     new File(TEZ_HOME, "lib/"), "",

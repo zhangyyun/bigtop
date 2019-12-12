@@ -12,15 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-%define etc_zookeeper /etc/%{name}
-%define bin_zookeeper %{_bindir}
-%define lib_zookeeper /usr/lib/%{name}
-%define log_zookeeper /var/log/%{name}
-%define run_zookeeper /var/run/%{name}
-%define vlb_zookeeper /var/lib/%{name}
-%define svc_zookeeper %{name}-server
-%define svc_zookeeper_rest %{name}-rest
-%define man_dir %{_mandir}
+%define zookeeper_sname zookeeper
+%define zookeeper_home %{zookeeper_base}/%{zookeeper_sname}
+%define etc_zookeeper %{zookeeper_base}/etc/%{zookeeper_sname}
+%define bin_zookeeper %{zookeeper_home}/bin
+%define lib_zookeeper %{zookeeper_home}/lib
+%define log_zookeeper /var/log/%{zookeeper_sname}
+%define run_zookeeper /var/run/%{zookeeper_sname}
+#%define vlb_zookeeper /var/lib/%{name}
+%define svc_zookeeper %{zookeeper_sname}-server
+%define svc_zookeeper_rest %{zookeeper_sname}-rest
+%define man_dir %{zookeeper_home}/man
 
 %if  %{?suse_version:1}0
 
@@ -49,18 +51,18 @@
 
 %else
 
-%define doc_zookeeper %{_docdir}/%{name}-%{zookeeper_version}
+%define doc_zookeeper %{zookeeper_home}/doc
 %define alternatives_cmd alternatives
 %define alternatives_dep chkconfig 
 %define chkconfig_dep    chkconfig
 %define service_dep      initscripts
-%global initd_dir %{_sysconfdir}/rc.d/init.d
+%global initd_dir %{zookeeper_home}%{_sysconfdir}/rc.d/init.d
 
 %endif
 
 
 
-Name: zookeeper
+Name: %{zookeeper_name}
 Version: %{zookeeper_version}
 Release: %{zookeeper_release}
 Summary: A high-performance coordination service for distributed applications.
@@ -68,7 +70,7 @@ URL: http://zookeeper.apache.org/
 Group: Development/Libraries
 Buildroot: %{_topdir}/INSTALL/%{name}-%{version}
 License: ASL 2.0
-Source0: %{name}-%{zookeeper_base_version}.tar.gz
+Source0: %{zookeeper_sname}-%{zookeeper_base_version}.tar.gz
 Source1: do-component-build
 Source2: install_zookeeper.sh
 Source3: zookeeper-server.sh
@@ -81,9 +83,8 @@ Source9: zookeeper-rest.svc
 #BIGTOP_PATCH_FILES
 BuildRequires: autoconf, automake, cppunit-devel
 Requires(pre): coreutils, /usr/sbin/groupadd, /usr/sbin/useradd
-Requires(post): %{alternatives_dep}
-Requires(preun): %{alternatives_dep}
 Requires: bigtop-utils >= 0.7
+Requires: hdp-select >= %{hdp_version}
 
 %description 
 ZooKeeper is a centralized service for maintaining configuration information, 
@@ -99,9 +100,6 @@ difficult to manage. Even when done correctly, different implementations of thes
 Summary: The Hadoop Zookeeper server
 Group: System/Daemons
 Requires: %{name} = %{version}-%{release}
-Requires(pre): %{name} = %{version}-%{release}
-Requires(post): %{chkconfig_dep}
-Requires(preun): %{service_dep}, %{chkconfig_dep}
 
 %if  %{?suse_version:1}0
 # Required for init scripts
@@ -128,9 +126,6 @@ This package starts the zookeeper server on startup
 Summary: ZooKeeper REST Server
 Group: System/Daemons
 Requires: %{name} = %{version}-%{release}
-Requires(pre): %{name} = %{version}-%{release}
-Requires(post): %{chkconfig_dep}
-Requires(preun): %{service_dep}, %{chkconfig_dep}
 
 %package native
 Summary: C bindings for ZooKeeper clients
@@ -143,22 +138,29 @@ Provides native libraries and development headers for C / C++ ZooKeeper clients.
 This package starts the zookeeper REST server on startup
 
 %prep
-%setup -n %{name}-%{zookeeper_base_version}
+%setup -n %{zookeeper_sname}-%{zookeeper_base_version}
 
 #BIGTOP_PATCH_COMMANDS
 
 %build
+#solve proxy issue
+. /etc/profile
 bash %{SOURCE1}
 
 %install
 %__rm -rf $RPM_BUILD_ROOT
 cp $RPM_SOURCE_DIR/zookeeper.1 $RPM_SOURCE_DIR/zoo.cfg $RPM_SOURCE_DIR/zookeeper.default .
 bash %{SOURCE2} \
-          --build-dir=build/%{name}-%{zookeeper_base_version} \
+          --build-dir=build/%{zookeeper_sname}-%{zookeeper_base_version} \
+          --lib-dir=%{lib_zookeeper} \
+          --bin-dir=%{bin_zookeeper} \
           --doc-dir=%{doc_zookeeper} \
+          --home-dir=%{zookeeper_home} \
+          --man-dir=%{man_dir} \
+          --etc-dir=%{etc_zookeeper} \
           --prefix=$RPM_BUILD_ROOT \
-          --system-include-dir=%{_includedir} \
-          --system-lib-dir=%{_libdir}
+          --system-include-dir=%{zookeeper_home}%{_includedir} \
+          --system-lib-dir=%{zookeeper_home}%{_libdir}
 
 %if  %{?suse_version:1}0
 orig_init_file=%{SOURCE4}
@@ -177,57 +179,33 @@ bash $RPM_SOURCE_DIR/init.d.tmpl $RPM_SOURCE_DIR/zookeeper-rest.svc rpm $init_fi
 
 %pre
 getent group zookeeper >/dev/null || groupadd -r zookeeper
-getent passwd zookeeper > /dev/null || useradd -c "ZooKeeper" -s /sbin/nologin -g zookeeper -r -d %{vlb_zookeeper} zookeeper 2> /dev/null || :
+getent passwd zookeeper > /dev/null || useradd -c "ZooKeeper" -s /sbin/nologin -g zookeeper -r -d %{run_zookeeper} zookeeper 2> /dev/null || :
 
 %__install -d -o zookeeper -g zookeeper -m 0755 %{run_zookeeper}
 %__install -d -o zookeeper -g zookeeper -m 0755 %{log_zookeeper}
 
-# Manage configuration symlink
 %post
-%{alternatives_cmd} --install %{etc_zookeeper}/conf %{name}-conf %{etc_zookeeper}/conf.dist 30
-%__install -d -o zookeeper -g zookeeper -m 0755 %{vlb_zookeeper}
+/usr/bin/hdp-select --rpm-mode set zookeeper-client %{hdp_version}
+/usr/bin/hdp-select --rpm-mode set zookeeper-server %{hdp_version}
 
-%preun
-if [ "$1" = 0 ]; then
-        %{alternatives_cmd} --remove %{name}-conf %{etc_zookeeper}/conf.dist || :
+if [ !  -e "/etc/zookeeper/conf" ]; then
+    rm -f /etc/zookeeper/conf
+    mkdir -p /etc/zookeeper/conf
+    cp -rp %{etc_zookeeper}/conf.dist/* /etc/zookeeper/conf
 fi
 
-%post server
-	chkconfig --add %{svc_zookeeper}
-
-%preun server
-if [ $1 = 0 ] ; then
-	service %{svc_zookeeper} stop > /dev/null 2>&1
-	chkconfig --del %{svc_zookeeper}
-fi
-
-%postun server
-if [ $1 -ge 1 ]; then
-        service %{svc_zookeeper} condrestart > /dev/null 2>&1
-fi
-
-%post rest
-	chkconfig --add %{svc_zookeeper_rest}
-
-%preun rest
-if [ $1 = 0 ] ; then
-	service %{svc_zookeeper_rest} stop > /dev/null 2>&1
-	chkconfig --del %{svc_zookeeper_rest}
-fi
-
-%postun rest
-if [ $1 -ge 1 ]; then
-        service %{svc_zookeeper_rest} condrestart > /dev/null 2>&1
-fi
-
-#######################
-#### FILES SECTION ####
-#######################
 %files
 %defattr(-,root,root)
 %config(noreplace) %{etc_zookeeper}/conf.dist
-%config(noreplace) /etc/default/zookeeper
 %{lib_zookeeper}
+%{zookeeper_home}/zookeeper*.jar
+%{zookeeper_home}/contrib
+%{zookeeper_home}/conf
+%{bin_zookeeper}/zkServer.sh
+%{bin_zookeeper}/zkEnv.sh
+%{bin_zookeeper}/zkCli.sh
+%{bin_zookeeper}/zkCleanup.sh
+%{bin_zookeeper}/zkServer-initialize.sh
 %{bin_zookeeper}/zookeeper-server
 %{bin_zookeeper}/zookeeper-server-initialize
 %{bin_zookeeper}/zookeeper-client
@@ -246,6 +224,6 @@ fi
 %{lib_zookeeper}-native
 %{bin_zookeeper}/cli_*
 %{bin_zookeeper}/load_gen*
-%{_includedir}/zookeeper
-%{_libdir}/*
+%{zookeeper_home}%{_includedir}/zookeeper
+%{zookeeper_home}%{_libdir}/*
 

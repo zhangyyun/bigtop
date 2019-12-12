@@ -26,6 +26,9 @@ usage: $0 <options>
 
   Optional options:
      --doc-dir=DIR               path to install docs into [/usr/share/doc/zookeeper]
+     --home-dir=DIR              home path to install into [/usr/lib/zookeeper]
+     --man-dir=DIR               path to install manpages into [/usr/share/man]
+     --etc-dir=DIR               path to install etc into [/etc]
      --lib-dir=DIR               path to install zookeeper home [/usr/lib/zookeeper]
      --bin-dir=DIR               path to install bins [/usr/bin]
      --examples-dir=DIR          path to install examples [doc-dir/examples]
@@ -43,6 +46,9 @@ OPTS=$(getopt \
   -l 'doc-dir:' \
   -l 'lib-dir:' \
   -l 'bin-dir:' \
+  -l 'home-dir:' \
+  -l 'man-dir:' \
+  -l 'etc-dir:' \
   -l 'examples-dir:' \
   -l 'system-include-dir:' \
   -l 'system-lib-dir:' \
@@ -60,6 +66,15 @@ while true ; do
         ;;
         --build-dir)
         BUILD_DIR=$2 ; shift 2
+        ;;
+        --home-dir)
+        HOME_DIR=$2 ; shift 2
+        ;;
+        --man-dir)
+        MAN_DIR=$2 ; shift 2
+        ;;
+        --etc-dir)
+        ETC_DIR=$2 ; shift 2
         ;;
         --doc-dir)
         DOC_DIR=$2 ; shift 2
@@ -97,54 +112,55 @@ for var in PREFIX BUILD_DIR ; do
   fi
 done
 
-MAN_DIR=/usr/share/man/man1
+HOME_DIR=${HOME_DIR:-/var/lib/zookeeper}
+MAN_DIR=${MAN_DIR:-/usr/share/man}
 DOC_DIR=${DOC_DIR:-/usr/share/doc/zookeeper}
 LIB_DIR=${LIB_DIR:-/usr/lib/zookeeper}
 BIN_DIR=${BIN_DIR:-/usr/bin}
 CONF_DIR=/etc/zookeeper/conf
-CONF_DIST_DIR=/etc/zookeeper/conf.dist/
+CONF_DIST_DIR=${ETC_DIR:-/etc/zookeeper}/conf.dist
 SYSTEM_INCLUDE_DIR=${SYSTEM_INCLUDE_DIR:-/usr/include}
 SYSTEM_LIB_DIR=${SYSTEM_LIB_DIR:-/usr/lib}
 
 install -d -m 0755 $PREFIX/$LIB_DIR/
 rm -f $BUILD_DIR/zookeeper-*-javadoc.jar $BUILD_DIR/zookeeper-*-bin.jar $BUILD_DIR/zookeeper-*-sources.jar $BUILD_DIR/zookeeper-*-test.jar
-cp $BUILD_DIR/zookeeper*.jar $PREFIX/$LIB_DIR/
-install -d -m 0755 ${PREFIX}/${LIB_DIR}/contrib
+cp $BUILD_DIR/zookeeper*.jar $PREFIX/$HOME_DIR/
+install -d -m 0755 ${PREFIX}/${HOME_DIR}/contrib
 for module in rest; do
-    cp -r ${BUILD_DIR}/contrib/${module} ${PREFIX}/${LIB_DIR}/contrib/
+    cp -r ${BUILD_DIR}/contrib/${module} ${PREFIX}/${HOME_DIR}/contrib/
 done
 
 # Make a symlink of zookeeper.jar to zookeeper-version.jar
-for x in $PREFIX/$LIB_DIR/zookeeper*jar ; do
+for x in $PREFIX/$HOME_DIR/zookeeper*jar ; do
   x=$(basename $x)
-  ln -s $x $PREFIX/$LIB_DIR/zookeeper.jar
+  ln -s $x $PREFIX/$HOME_DIR/zookeeper.jar
 done
 
-install -d -m 0755 $PREFIX/$LIB_DIR/lib
-cp $BUILD_DIR/lib/*.jar $PREFIX/$LIB_DIR/lib
+install -d -m 0755 $PREFIX/$LIB_DIR
+cp $BUILD_DIR/lib/*.jar $PREFIX/$LIB_DIR
 
 # Copy in the configuration files
 install -d -m 0755 $PREFIX/$CONF_DIST_DIR
 cp zoo.cfg $BUILD_DIR/conf/* $PREFIX/$CONF_DIST_DIR/
-ln -s $CONF_DIR $PREFIX/$LIB_DIR/conf
+ln -s $CONF_DIR $PREFIX/$HOME_DIR/conf
 
-install -d -m 0755 ${PREFIX}/${LIB_DIR}/contrib
+install -d -m 0755 ${PREFIX}/${HOME_DIR}/contrib
 for module in rest; do
-    cp -r ${BUILD_DIR}/contrib/${module} ${PREFIX}/${LIB_DIR}/contrib/
-    mv ${PREFIX}/${LIB_DIR}/contrib/${module}/conf ${PREFIX}/${CONF_DIST_DIR}/${module}
+    cp -r ${BUILD_DIR}/contrib/${module} ${PREFIX}/${HOME_DIR}/contrib/
+    mv ${PREFIX}/${HOME_DIR}/contrib/${module}/conf ${PREFIX}/${CONF_DIST_DIR}/${module}
 done
 
 # Copy in the /usr/bin/zookeeper-server wrapper
-install -d -m 0755 $PREFIX/$LIB_DIR/bin
+install -d -m 0755 $PREFIX/${BIN_DIR}
 # FIXME: a workaround in preparation for Zookeeper 3.5
 echo '#!/bin/bash' > $BUILD_DIR/bin/zkServer-initialize.sh
 
 for i in zkServer.sh zkEnv.sh zkCli.sh zkCleanup.sh zkServer-initialize.sh
-	do cp $BUILD_DIR/bin/$i $PREFIX/$LIB_DIR/bin
-	chmod 755 $PREFIX/$LIB_DIR/bin/$i
+	do cp $BUILD_DIR/bin/$i $PREFIX/${BIN_DIR}
+	chmod 755 $PREFIX/${BIN_DIR}/$i
 done
 
-wrapper=$PREFIX/usr/bin/zookeeper-client
+wrapper=$PREFIX/${BIN_DIR}/zookeeper-client
 install -d -m 0755 `dirname $wrapper`
 cat > $wrapper <<EOF
 #!/bin/bash
@@ -152,16 +168,16 @@ cat > $wrapper <<EOF
 # Autodetect JAVA_HOME if not defined
 . /usr/lib/bigtop-utils/bigtop-detect-javahome
 
-export ZOOKEEPER_HOME=\${ZOOKEEPER_CONF:-/usr/lib/zookeeper}
+export ZOOKEEPER_HOME=\${ZOOKEEPER_HOME:-${HOME_DIR}}
 export ZOOKEEPER_CONF=\${ZOOKEEPER_CONF:-/etc/zookeeper/conf}
 export CLASSPATH=\$CLASSPATH:\$ZOOKEEPER_CONF:\$ZOOKEEPER_HOME/*:\$ZOOKEEPER_HOME/lib/*
 export ZOOCFGDIR=\${ZOOCFGDIR:-\$ZOOKEEPER_CONF}
-env CLASSPATH=\$CLASSPATH /usr/lib/zookeeper/bin/zkCli.sh "\$@"
+env CLASSPATH=\$CLASSPATH ${BIN_DIR}/zkCli.sh "\$@"
 EOF
 chmod 755 $wrapper
 
 for pairs in zkServer.sh/zookeeper-server zkServer-initialize.sh/zookeeper-server-initialize zkCleanup.sh/zookeeper-server-cleanup ; do
-  wrapper=$PREFIX/usr/bin/`basename $pairs`
+  wrapper=$PREFIX/${BIN_DIR}/`basename $pairs`
   upstream_script=`dirname $pairs`
   cat > $wrapper <<EOF
 #!/bin/bash
@@ -170,7 +186,7 @@ for pairs in zkServer.sh/zookeeper-server zkServer-initialize.sh/zookeeper-serve
 . /usr/lib/bigtop-utils/bigtop-detect-javahome
 
 export ZOOPIDFILE=\${ZOOPIDFILE:-/var/run/zookeeper/zookeeper_server.pid}
-export ZOOKEEPER_HOME=\${ZOOKEEPER_CONF:-/usr/lib/zookeeper}
+export ZOOKEEPER_HOME=\${ZOOKEEPER_HOME:-${HOME_DIR}}
 export ZOOKEEPER_CONF=\${ZOOKEEPER_CONF:-/etc/zookeeper/conf}
 export ZOOCFGDIR=\${ZOOCFGDIR:-\$ZOOKEEPER_CONF}
 export CLASSPATH=\$CLASSPATH:\$ZOOKEEPER_CONF:\$ZOOKEEPER_HOME/*:\$ZOOKEEPER_HOME/lib/*
@@ -178,7 +194,7 @@ export ZOO_LOG_DIR=\${ZOO_LOG_DIR:-/var/log/zookeeper}
 export ZOO_LOG4J_PROP=\${ZOO_LOG4J_PROP:-INFO,ROLLINGFILE}
 export JVMFLAGS=\${JVMFLAGS:--Dzookeeper.log.threshold=INFO}
 export ZOO_DATADIR_AUTOCREATE_DISABLE=\${ZOO_DATADIR_AUTOCREATE_DISABLE:-true}
-env CLASSPATH=\$CLASSPATH /usr/lib/zookeeper/bin/${upstream_script} "\$@"
+env CLASSPATH=\$CLASSPATH ${BIN_DIR}/${upstream_script} "\$@"
 EOF
   chmod 755 $wrapper
 done
@@ -188,11 +204,8 @@ install -d -m 0755 $PREFIX/$DOC_DIR
 cp -a $BUILD_DIR/docs/* $PREFIX/$DOC_DIR
 cp $BUILD_DIR/*.txt $PREFIX/$DOC_DIR/
 
-install -d -m 0755 ${PREFIX}/etc/default
-cp zookeeper.default ${PREFIX}/etc/default/zookeeper
-
-install -d -m 0755 $PREFIX/$MAN_DIR
-gzip -c zookeeper.1 > $PREFIX/$MAN_DIR/zookeeper.1.gz
+install -d -m 0755 $PREFIX/$MAN_DIR/man1
+gzip -c zookeeper.1 > $PREFIX/$MAN_DIR/man1/zookeeper.1.gz
 
 # Zookeeper log and tx log directory
 install -d -m 1766 $PREFIX/var/log/zookeeper
@@ -208,12 +221,12 @@ cp -R ${BUILD_DIR}/../usr/include/* ${PREFIX}/${SYSTEM_INCLUDE_DIR}/
 cp -R ${BUILD_DIR}/../usr/lib*/* ${PREFIX}/${SYSTEM_LIB_DIR}/
 cp -R ${BUILD_DIR}/../usr/bin/* ${PREFIX}/${LIB_DIR}-native/
 for binary in ${PREFIX}/${LIB_DIR}-native/*; do
-  cat > ${PREFIX}/${BIN_DIR}/`basename ${binary}` <<EOF
+  cat > ${PREFIX}/${BASE}/${BIN_DIR}/`basename ${binary}` <<EOF
 #!/bin/bash
 
 PREFIX=\$(dirname \$(readlink -f \$0))
 export LD_LIBRARY_PATH=\${LD_LIBRARY_PATH}:\${PREFIX}/../lib:\${PREFIX}/../lib64
-/usr/lib/zookeeper-native/`basename ${binary}` \$@
+${LIB_DIR}-native/`basename ${binary}` \$@
 
 EOF
 done

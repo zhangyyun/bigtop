@@ -15,9 +15,28 @@
 HADOOP_NAME="secondarynamenode"
 DAEMON="hadoop-hdfs-$HADOOP_NAME"
 DESC="Hadoop $HADOOP_NAME"
-EXEC_PATH="/usr/lib/hadoop/sbin/hadoop-daemon.sh"
-SVC_USER="hdfs"
-WORKING_DIR="/var/lib/hadoop-hdfs"
+EXEC_PATH="\$HADOOP_HOME/sbin/hadoop-daemon.sh"
+SVC_USER="\${SVC_USER:-hdfs}"
+WORKING_DIR="\$HADOOP_HOME"
 DAEMON_FLAGS="$HADOOP_NAME"
-CONF_DIR="/etc/hadoop/conf"
-PIDFILE="/var/run/hadoop-hdfs/hadoop-$SVC_USER-$HADOOP_NAME.pid"
+CONF_DIR="\$HADOOP_HOME/conf"
+PIDFILE="\$HADOOP_PID_DIR/hadoop-\$SVC_USER-\$SERVICE_NAME.pid"
+
+hook_commands() {
+
+cat <<__EOT__
+SERVICE_NAME="${HADOOP_NAME}"
+export HADOOP_HOME="/usr/hdp/current/hadoop-hdfs-\$SERVICE_NAME/../hadoop"
+
+SVC_USER="$SVC_USER"
+USER="\${SVC_USER}"
+CONF_DIR="\${HADOOP_HOME}/conf"
+. \$CONF_DIR/hadoop-env.sh
+
+HADOOP_PID_DIR="\${HADOOP_PID_DIR:-/var/run/hadoop/\$SVC_USER}"
+HADOOP_LOG_DIR="\${HADOOP_LOG_DIR:-/var/log/hadoop/\$SVC_USER}"
+install -d -m 0755 -o \${SVC_USER} -g \${SVC_USER} \${HADOOP_PID_DIR} 1>/dev/null 2>&1 || :
+install -d -m 0755 -o \${SVC_USER} -g \${SVC_USER} \${HADOOP_LOG_DIR} 1>/dev/null 2>&1 || :
+__EOT__
+
+}

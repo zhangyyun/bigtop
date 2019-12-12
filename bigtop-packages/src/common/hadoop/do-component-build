@@ -120,7 +120,7 @@ mkdir build/src
 if [ ! -z ${LOCAL_DOWNLOADS_DIR-} ] && [ -f $LOCAL_DOWNLOADS_DIR/tomcat/apache-tomcat-$BIGTOP_TOMCAT_VERSION.tar.gz ]; then
   BIGTOP_TOMCAT_DOWNLOAD_URL=file://$LOCAL_DOWNLOADS_DIR/tomcat/apache-tomcat-$BIGTOP_TOMCAT_VERSION.tar.gz
 else
-  BIGTOP_TOMCAT_DOWNLOAD_URL=http://archive.apache.org/dist/tomcat/tomcat-6/v${BIGTOP_TOMCAT_VERSION}/bin/apache-tomcat-${BIGTOP_TOMCAT_VERSION}.tar.gz
+  BIGTOP_TOMCAT_DOWNLOAD_URL=http://localhost/tomcat/apache-tomcat-${BIGTOP_TOMCAT_VERSION}.tar.gz
 fi
 
 # Build artifacts
@@ -140,4 +140,4 @@ cp -r target/staging/hadoop-project build/share/doc
 (cd hadoop-client/target/hadoop-client-*/share/hadoop/client/lib ; ls) > build/hadoop-client.list
 
 # Copy fuse output to the build directory
-cp hadoop-hdfs-project/hadoop-hdfs-native-client/target/main/native/fuse-dfs/fuse_dfs build/bin
+cp hadoop-hdfs-project/hadoop-hdfs/target/native/main/native/fuse-dfs/fuse_dfs build/bin

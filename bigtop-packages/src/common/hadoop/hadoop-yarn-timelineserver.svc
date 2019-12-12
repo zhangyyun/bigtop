@@ -15,10 +15,30 @@
 HADOOP_NAME="timelineserver"
 DAEMON="hadoop-yarn-$HADOOP_NAME"
 DESC="Hadoop $HADOOP_NAME"
-EXEC_PATH="/usr/lib/hadoop-yarn/sbin/yarn-daemon.sh"
-SVC_USER="yarn"
-WORKING_DIR="/var/lib/hadoop-yarn"
+EXEC_PATH="\$HADOOP_HOME/../hadoop-yarn/sbin/yarn-daemon.sh"
+SVC_USER="\${SVC_USER:-yarn}"
+WORKING_DIR="\$HADOOP_HOME"
 DAEMON_FLAGS="$HADOOP_NAME"
-CONF_DIR="/etc/hadoop/conf"
-PIDFILE="/var/run/hadoop-yarn/yarn-$SVC_USER-$HADOOP_NAME.pid"
+CONF_DIR="\$HADOOP_HOME/conf"
+PIDFILE="\$YARN_PID_DIR/yarn-\$SVC_USER-\$SERVICE_NAME.pid"
 CHKCONFIG="2345 95 15"
+
+hook_commands() {
+
+cat <<__EOT__
+SERVICE_NAME="${HADOOP_NAME}"
+export HADOOP_HOME="/usr/hdp/current/hadoop-yarn-\$SERVICE_NAME/../hadoop"
+
+SVC_USER="$SVC_USER"
+USER="\${SVC_USER}"
+CONF_DIR="\${HADOOP_HOME}/conf"
+. \$CONF_DIR/hadoop-env.sh
+. \$CONF_DIR/yarn-env.sh
+
+YARN_PID_DIR="\${YARN_PID_DIR:-/var/run/hadoop-yarn/\$SVC_USER}"
+YARN_LOG_DIR="\${YARN_LOG_DIR:-/var/log/hadoop-yarn/\$SVC_USER}"
+install -d -m 0755 -o \${SVC_USER} -g \${SVC_USER} \${YARN_PID_DIR} 1>/dev/null 2>&1 || :
+install -d -m 0755 -o \${SVC_USER} -g \${SVC_USER} \${YARN_LOG_DIR} 1>/dev/null 2>&1 || :
+__EOT__
+
+}

@@ -20,7 +20,7 @@ set -ex
 sed -i '/<!-- Download NSIS (Nullsoft Scriptable Install System) -->/,+5d' build.xml
 mkdir dl
 #update to supported commons pool version
-ant -Dbase.path=dl -Dcommons-pool.version=1.6 clean download
+ant -Dbase.path=dl -Dcommons-pool.version=1.6 -Dbase-apache.loc.1=http://localhost -Dtomcat-native.loc.1=http://localhost/tomcat/tomcat-connectors/native/tomcat-native-1.2.12-src.tar.gz -Dtomcat-native.win.1=http://localhost/tomcat/tomcat-connectors/native/tomcat-native-1.2.12-win32-bin.zip clean download
 ant -Dbase.path=dl -Dcommons-pool.version=1.6
 ant -Dbase.path=dl -Dcommons-pool.version=1.6 -Dskip.installer=true -f dist.xml dist-static package-tgz
 

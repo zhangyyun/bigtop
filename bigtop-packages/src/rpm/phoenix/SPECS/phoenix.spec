@@ -12,13 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-%define phoenix_home /usr/lib/%{name}
+%define hdp_ver 2.5.3.0-37
+%define hdp_base /usr/hdp/%{hdp_ver}
+%define phoenix_home %{hdp_base}/%{name}
 %define bin_phoenix %{phoenix_home}/bin
 %define etc_phoenix_conf %{_sysconfdir}/%{name}/conf
 %define etc_phoenix_conf_dist %{etc_phoenix_conf}.dist
 %define var_lib_phoenix /var/lib/%{name}
 %define var_log_phoenix /var/log/%{name}
-%define man_dir %{_mandir}
+%define man_dir %{}
 %define zookeeper_home /usr/lib/zookeeper
 %define hadoop_home /usr/lib/hadoop
 %define hadoop_mapreduce_home /usr/lib/hadoop-mapreduce
@@ -73,7 +75,7 @@
 
 %endif
 
-Name: phoenix
+Name: %{phoenix_name}
 Version: %{phoenix_version}
 Release: %{phoenix_release}
 Summary: Phoenix is a SQL skin over HBase and client-embedded JDBC driver.
@@ -81,7 +83,7 @@ URL: http://phoenix.apache.org
 Group: Development/Libraries
 Buildroot: %{_topdir}/INSTALL/%{name}-%{version}
 License: ASL 2.0
-Source0: %{name}-%{phoenix_base_version}-src.tar.gz
+Source0: %{name}-%{phoenix_base_version}-source.tar.gz
 Source1: do-component-build
 Source2: install_phoenix.sh
 Source3: phoenix.default
@@ -117,7 +119,7 @@ with Phoenix and HBase. Soon this will enable access from environments
 other than the JVM.
 
 %prep
-%setup -n apache-%{name}-%{phoenix_base_version}-src
+%setup -n %{name}-%{phoenix_base_version}-source
 #BIGTOP_PATCH_COMMANDS
 
 %build

@@ -18,6 +18,7 @@
 
 buildscript {
   repositories {
+    mavenLocal()
     mavenCentral()
   }
 }
@@ -156,6 +157,7 @@ allprojects {
   targetCompatibility = langLevel
 
   repositories {
+    mavenLocal()
     mavenCentral()
   }
 }
